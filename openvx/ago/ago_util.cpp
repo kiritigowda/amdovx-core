@@ -86,13 +86,13 @@ static struct { const char * name; vx_enum value; vx_size size; } s_table_consta
 		{ "BOOL", VX_TYPE_BOOL, sizeof(vx_bool) },
 		{ "KEYPOINT_XYS", AGO_TYPE_KEYPOINT_XYS, sizeof(ago_keypoint_xys_t) },
 		{ "STRING", VX_TYPE_STRING_AMD },
-		{ "VX_TYPE_HOG", VX_TYPE_HOG, sizeof(vx_hog_t) },
-		{ "VX_TYPE_HOUGH_LINES_P", VX_TYPE_HOUGH_LINES_P, sizeof(vx_hough_lines_p_t) },
-		{ "VX_TYPE_LINE2D", VX_TYPE_LINE2D, sizeof(vx_line2d_t) },
-		{ "VX_TYPE_MATRIX_MULTIPLY_PARAMS", VX_TYPE_MATRIX_MULTIPLY_PARAMS, sizeof(vx_matrix_multiply_params_t) },
-		{ "VX_TYPE_NN_CONV_PARAMS", VX_TYPE_NN_CONV_PARAMS, sizeof(vx_nn_convolution_params_t) },
-		{ "VX_TYPE_NN_DECONV_PARAMS", VX_TYPE_NN_DECONV_PARAMS, sizeof(vx_nn_deconvolution_params_t) },
-		{ "VX_TYPE_NN_ROIPOOL_PARAMS", VX_TYPE_NN_ROIPOOL_PARAMS, sizeof(vx_nn_roi_pool_params_t) },
+		{ "VX_TYPE_HOG_PARAMS", VX_TYPE_HOG_PARAMS, sizeof(vx_hog_t) },
+		{ "VX_TYPE_HOUGH_LINES_PARAMS", VX_TYPE_HOUGH_LINES_PARAMS, sizeof(vx_hough_lines_p_t) },
+		{ "VX_TYPE_LINE_2D", VX_TYPE_LINE_2D, sizeof(vx_line2d_t) },
+		{ "VX_TYPE_TENSOR_MATRIX_MULTIPLY_PARAMS", VX_TYPE_TENSOR_MATRIX_MULTIPLY_PARAMS, sizeof(vx_tensor_matrix_multiply_params_t) },
+		{ "VX_TYPE_NN_CONVOLUTION_PARAMS", VX_TYPE_NN_CONVOLUTION_PARAMS, sizeof(vx_nn_convolution_params_t) },
+		{ "VX_TYPE_NN_DECONVOLUTION_PARAMS", VX_TYPE_NN_DECONVOLUTION_PARAMS, sizeof(vx_nn_deconvolution_params_t) },
+		{ "VX_TYPE_NN_ROI_POOL_PARAMS", VX_TYPE_NN_ROI_POOL_PARAMS, sizeof(vx_nn_roi_pool_params_t) },
 		// for debug purposes only
 		{ "VX_TYPE_LUT", VX_TYPE_LUT },
 		{ "VX_TYPE_DISTRIBUTION", VX_TYPE_DISTRIBUTION },
@@ -1603,12 +1603,15 @@ int agoGetDataFromDescription(AgoContext * acontext, AgoGraph * agraph, AgoData 
 		if (agoParseWordFromDescription(desc, sizeof(data_type), data_type) < 0)
 			return -1;
 		data->u.tensor.data_type = agoName2Enum(data_type);
-		if (data->u.tensor.data_type != VX_TYPE_INT16 && data->u.tensor.data_type != VX_TYPE_FLOAT32 && data->u.tensor.data_type != VX_TYPE_FLOAT16) {
+		if (data->u.tensor.data_type != VX_TYPE_INT16 &&
+			data->u.tensor.data_type != VX_TYPE_UINT8 && data->u.tensor.data_type != VX_TYPE_UINT16 &&
+			data->u.tensor.data_type != VX_TYPE_FLOAT32 && data->u.tensor.data_type != VX_TYPE_FLOAT16)
+		{
 			agoAddLogEntry(&data->ref, VX_FAILURE, "ERROR: agoGetDataFromDescription: invalid data_type for tensor: %s\n", data_type);
 			return -1;
 		}
 		data->u.tensor.fixed_point_pos = 0;
-		if (data->u.tensor.data_type == VX_TYPE_INT16) {
+		if (data->u.tensor.data_type != VX_TYPE_FLOAT32 && data->u.tensor.data_type != VX_TYPE_FLOAT16) {
 			if (*desc++ != ',') return -1;
 			if (agoParseValueFromDescription(desc, data->u.tensor.fixed_point_pos) < 0)
 				return -1;
@@ -3007,6 +3010,7 @@ AgoNode::AgoNode()
 	: next{ nullptr }, akernel{ nullptr }, flags{ 0 }, localDataSize{ 0 }, localDataPtr{ nullptr }, localDataPtr_allocated{ nullptr }, 
 	  valid_rect_reset{ vx_true_e }, valid_rect_num_inputs{ 0 }, valid_rect_num_outputs{ 0 }, valid_rect_inputs{ nullptr }, valid_rect_outputs{ nullptr },
 	  paramCount{ 0 }, callback{ nullptr }, supernode{ nullptr }, initialized{ false }, target_support_flags{ 0 }, hierarchical_level{ 0 }, status{ VX_SUCCESS }
+	, drama_divide_invoked{ false }
 #if ENABLE_OPENCL
 	, opencl_type{ 0 }, opencl_param_mem2reg_mask{ 0 }, opencl_param_discard_mask{ 0 }, opencl_param_as_value_mask{ 0 },
 	  opencl_param_atomic_mask{ 0 }, opencl_local_buffer_usage_mask{ 0 }, opencl_local_buffer_size_in_bytes{ 0 }, opencl_work_dim{ 0 },
@@ -3108,6 +3112,7 @@ AgoContext::AgoContext()
 #endif
 	  , opencl_context_imported{ false }, opencl_context{ nullptr }, opencl_cmdq{ nullptr }, opencl_config_flags{ 0 }, opencl_num_devices{ 0 }, isAmdMediaOpsSupported{ true }
 	  , opencl_mem_alloc_size{ 0 }, opencl_mem_alloc_count{ 0 }, opencl_mem_release_count{ 0 }
+      , opencl_cmdq_properties{ 0 }
 #endif
 {
 	memset(&kernelList, 0, sizeof(kernelList));

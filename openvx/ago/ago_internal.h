@@ -34,7 +34,7 @@ THE SOFTWARE.
 //
 
 // version
-#define AGO_VERSION "0.9.6"
+#define AGO_VERSION "0.9.8"
 
 // debug configuration
 #define ENABLE_DEBUG_MESSAGES                 0 // 0:disable 1:enable
@@ -541,6 +541,7 @@ struct AgoNode {
 	vx_nodecomplete_f callback;
 	AgoSuperNode * supernode;
 	bool initialized;
+	bool drama_divide_invoked;
 	vx_uint32 valid_rect_num_inputs;
 	vx_uint32 valid_rect_num_outputs;
 	vx_rectangle_t ** valid_rect_inputs;
@@ -689,6 +690,7 @@ struct AgoContext {
 #if defined(CL_VERSION_2_0)
 	cl_device_svm_capabilities opencl_svmcaps;
 #endif
+    cl_command_queue_properties opencl_cmdq_properties;
 	cl_uint      opencl_num_devices;
 	cl_device_id opencl_device_list[16];
 	char opencl_build_options[256];

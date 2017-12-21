@@ -178,8 +178,8 @@ int agoGpuOclAllocBuffers(AgoGraph * graph)
 		for (auto d : G) {
 			cl_mem_object_type dMemType = getMemObjectType(d);
 			if((dataMemType != dMemType) ||
-			   ( s      >= d->hierarchical_life_start &&  s      <= (d->hierarchical_life_end + 1)) ||
-			   ((e + 1) >= d->hierarchical_life_start && (e + 1) <= (d->hierarchical_life_end + 1)))
+			   (s >= d->hierarchical_life_start && s <= d->hierarchical_life_end) ||
+			   (e >= d->hierarchical_life_start && e <= d->hierarchical_life_end))
 			{
 				return false;
 			}
@@ -281,9 +281,10 @@ static int agoOptimizeDramaAllocGpuResources(AgoGraph * graph)
 			cl_int err = -1;
 			graph->opencl_device = context->opencl_device_list[0];
 #if defined(CL_VERSION_2_0)
-			graph->opencl_cmdq = clCreateCommandQueueWithProperties(context->opencl_context, graph->opencl_device, NULL, &err);
+            cl_queue_properties properties[] = { CL_QUEUE_PROPERTIES, context->opencl_cmdq_properties, 0 };
+			graph->opencl_cmdq = clCreateCommandQueueWithProperties(context->opencl_context, graph->opencl_device, properties, &err);
 #else
-			graph->opencl_cmdq = clCreateCommandQueue(context->opencl_context, graph->opencl_device, 0, &err);
+			graph->opencl_cmdq = clCreateCommandQueue(context->opencl_context, graph->opencl_device, context->opencl_cmdq_properties, &err);
 #endif
 			if (err) {
 				agoAddLogEntry(&graph->ref, VX_FAILURE, "ERROR: clCreateCommandQueueWithProperties(%p,%p,0,*) => %d\n", context->opencl_context, graph->opencl_device, err);

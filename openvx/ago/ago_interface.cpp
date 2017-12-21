@@ -1210,6 +1210,7 @@ vx_status agoVerifyNode(AgoNode * node)
 			// reset meta data of the node for output argument processing
 			if ((kernel->argConfig[arg] & (AGO_KERNEL_ARG_INPUT_FLAG | AGO_KERNEL_ARG_OUTPUT_FLAG)) == AGO_KERNEL_ARG_OUTPUT_FLAG) {
 				vx_meta_format meta = &node->metaList[arg];
+				meta->data.ref.type = data->ref.type;
 				meta->data.ref.external_count = 1;
 				meta->set_valid_rectangle_callback = nullptr;
 				if (data->ref.type == VX_TYPE_IMAGE) {
@@ -1300,7 +1301,7 @@ vx_status agoVerifyNode(AgoNode * node)
 		if (data) {
 			if ((kernel->argConfig[arg] & (AGO_KERNEL_ARG_INPUT_FLAG | AGO_KERNEL_ARG_OUTPUT_FLAG)) == AGO_KERNEL_ARG_OUTPUT_FLAG) {
 				vx_meta_format meta = &node->metaList[arg];
-				if (kernel->argType[arg] && (meta->data.ref.type != kernel->argType[arg])) {
+				if (kernel->argType[arg] && kernel->argType[arg] != VX_TYPE_REFERENCE && (meta->data.ref.type != kernel->argType[arg])) {
 					agoAddLogEntry(&kernel->ref, VX_ERROR_INVALID_TYPE, "ERROR: agoVerifyGraph: kernel %s: output argument type mismatch for argument#%d\n", kernel->name, arg);
 					return VX_ERROR_INVALID_TYPE;
 				}
@@ -2052,7 +2053,7 @@ int agoExecuteGraph(AgoGraph * graph)
 		for (auto node = snode; node != enode; node = node->next) {
 			if (node->attr_affinity.device_type == AGO_KERNEL_FLAG_DEVICE_CPU) {
 #if ENABLE_OPENCL
-				opencl_buffer_access_enable |= node->akernel->opencl_buffer_access_enable;
+				opencl_buffer_access_enable |= (node->akernel->opencl_buffer_access_enable ? true : false);
 				if (!node->akernel->opencl_buffer_access_enable) {
 					agoPerfProfileEntry(graph, ago_profile_type_wait_begin, &node->ref);
 					if (nodeLaunchHierarchicalLevel > 0 && nodeLaunchHierarchicalLevel < node->hierarchical_level) {
@@ -2309,6 +2310,7 @@ vx_status agoDirective(vx_reference reference, vx_enum directive)
 					status = VX_ERROR_NOT_SUPPORTED;
 				}
 				break;
+#if ENABLE_OPENCL
 			case VX_DIRECTIVE_AMD_DISABLE_OPENCL_FLUSH:
 				if (reference->type == VX_TYPE_GRAPH) {
 					((AgoGraph *)reference)->enable_node_level_opencl_flush = false;
@@ -2317,6 +2319,7 @@ vx_status agoDirective(vx_reference reference, vx_enum directive)
 					status = VX_ERROR_NOT_SUPPORTED;
 				}
 				break;
+#endif
 			default:
 				status = VX_ERROR_NOT_SUPPORTED;
 				break;

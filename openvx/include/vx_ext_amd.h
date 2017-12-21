@@ -47,16 +47,6 @@ THE SOFTWARE.
 #define AGO_TARGET_AFFINITY_GPU_INFO_SVM_AS_CLMEM      0x20
 #define AGO_TARGET_AFFINITY_GPU_INFO_SVM_NO_FGS        0x40
 
-//////////////////////////////////////////////////////////////////////
-//! \brief The NN extention data types [TODO: should be part of vx_khr_nn.h & vx_types.h]
-#define VX_TYPE_HOG                    (VX_TYPE_VENDOR_STRUCT_START + 0x00)
-#define VX_TYPE_HOUGH_LINES_P          (VX_TYPE_VENDOR_STRUCT_START + 0x01)
-#define VX_TYPE_LINE2D                 (VX_TYPE_VENDOR_STRUCT_START + 0x02)
-#define VX_TYPE_MATRIX_MULTIPLY_PARAMS (VX_TYPE_VENDOR_STRUCT_START + 0x03)
-#define VX_TYPE_NN_CONV_PARAMS         (VX_TYPE_VENDOR_STRUCT_START + 0x10)
-#define VX_TYPE_NN_DECONV_PARAMS       (VX_TYPE_VENDOR_STRUCT_START + 0x11)
-#define VX_TYPE_NN_ROIPOOL_PARAMS      (VX_TYPE_VENDOR_STRUCT_START + 0x12)
-
 /*! \brief Maximum size of scalar string buffer. The local buffers used for accessing scalar strings 
 * should be of size VX_MAX_STRING_BUFFER_SIZE_AMD and the maximum allowed string length is
 * VX_MAX_STRING_BUFFER_SIZE_AMD-1.
@@ -97,6 +87,8 @@ enum vx_context_attribute_amd_e {
 	VX_CONTEXT_ATTRIBUTE_AMD_SET_MERGE_RULE = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_CONTEXT) + 0x04,
 	/*! \brief tensor Data max num of dimensions supported by HW. */
 	VX_CONTEXT_MAX_TENSOR_DIMENSIONS = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_CONTEXT) + 0x05,
+	/*! \brief CL_QUEUE_PROPERTIES to be used for creating OpenCL command queue. Use a <tt>\ref cl_command_queue_properties</tt> parameter. */
+	VX_CONTEXT_CL_QUEUE_PROPERTIES = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_CONTEXT) + 0x06,
 };
 
 /*! \brief The AMD kernel attributes list.
@@ -171,6 +163,9 @@ enum vx_tensor_attribute_amd_e {
 	VX_TENSOR_OFFSET_OPENCL   = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_TENSOR) + 0x6,
 	/*! \brief OpenCL buffer. <tt>cl_mem</tt>. */
 	VX_TENSOR_BUFFER_OPENCL   = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_TENSOR) + 0x7,
+    /*! \brief Queries memory type if created using vxCreateTensorFromHandle. If vx_tensor was not created using
+        vxCreateTensorFromHandle, VX_MEMORY_TYPE_NONE is returned. Use a <tt>\ref vx_memory_type_e</tt> parameter. */
+	VX_TENSOR_MEMORY_TYPE     = VX_ATTRIBUTE_BASE(VX_ID_AMD, VX_TYPE_TENSOR) + 0x8,
 };
 
 /*! \brief These enumerations are given to the \c vxDirective API to enable/disable
@@ -336,7 +331,8 @@ typedef vx_status(VX_CALLBACK * amd_kernel_opencl_codegen_callback_f) (
 
 /*! \brief AMD usernode callback for regenerating a node.
 */
-typedef vx_status(VX_CALLBACK * amd_kernel_node_regen_callback_f) (vx_graph graph, vx_node node, vx_bool& regen_not_needed);
+typedef vx_status(VX_CALLBACK * amd_drama_add_node_f)(vx_node node, vx_enum kernel_id, vx_reference * paramList, vx_uint32 paramCount);
+typedef vx_status(VX_CALLBACK * amd_kernel_node_regen_callback_f)(vx_node node, amd_drama_add_node_f add_node_f, vx_bool& replace_original);
 
 /*! \brief AMD usernode callback for updating the OpenCL global_work[]. The framework will pass
 *   OpenVX objects as parameters to OpenCL kernels in othe order they appear to OpenVX node and
@@ -543,6 +539,10 @@ VX_API_ENTRY vx_status VX_API_CALL vxSetContextImageFormatDescription(vx_context
 * \retval VX_ERROR_INVALID_FORMAT if format is already in use.
 */
 VX_API_ENTRY vx_status VX_API_CALL vxGetContextImageFormatDescription(vx_context context, vx_df_image format, AgoImageFormatDescription * desc);
+
+/* Tensor */
+VX_API_ENTRY vx_tensor VX_API_CALL vxCreateTensorFromHandle(vx_context context, vx_size number_of_dims, const vx_size * dims, vx_enum data_type, vx_int8 fixed_point_position, const vx_size * stride, void * ptr, vx_enum memory_type);
+VX_API_ENTRY vx_status VX_API_CALL vxSwapTensorHandle(vx_tensor tensor, void * new_ptr, void** prev_ptr);
 
 #ifdef  __cplusplus
 }

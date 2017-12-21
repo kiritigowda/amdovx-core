@@ -261,6 +261,12 @@ VX_API_ENTRY vx_status VX_API_CALL vxQueryContext(vx_context context, vx_enum at
 					status = VX_SUCCESS;
 				}
 				break;
+			case VX_CONTEXT_CL_QUEUE_PROPERTIES:
+				if (size == sizeof(cl_command_queue_properties)) {
+					*(cl_command_queue_properties *)ptr = context->opencl_cmdq_properties;
+					status = VX_SUCCESS;
+				}
+				break;
 #endif
 			case VX_CONTEXT_MAX_TENSOR_DIMENSIONS:
 				if (size == sizeof(vx_size)) {
@@ -355,6 +361,12 @@ VX_API_ENTRY vx_status VX_API_CALL vxSetContextAttribute(vx_context context, vx_
 					else {
 						status = VX_FAILURE;
 					}
+				}
+				break;
+			case VX_CONTEXT_CL_QUEUE_PROPERTIES:
+				if (size == sizeof(cl_command_queue_properties)) {
+					context->opencl_cmdq_properties = *(cl_command_queue_properties *)ptr;
+					status = VX_SUCCESS;
 				}
 				break;
 #endif
@@ -3221,7 +3233,7 @@ VX_API_ENTRY vx_status VX_API_CALL vxSetParameterByIndex(vx_node node, vx_uint32
 		else if (node->parameters[index].state == VX_PARAMETER_STATE_REQUIRED && !value) {
 			status = VX_ERROR_INVALID_REFERENCE;
 		}
-		else if ((index < node->paramCount) && (!node->parameters[index].type || !value || node->parameters[index].type == value->type)) {
+		else if ((index < node->paramCount) && (!node->parameters[index].type || !value || node->parameters[index].type == value->type || node->parameters[index].type == VX_TYPE_REFERENCE)) {
 			if (node->paramList[index]) {
 				agoReleaseData(node->paramList[index], false);
 			}
@@ -3736,6 +3748,23 @@ VX_API_ENTRY vx_status VX_API_CALL vxCopyScalar(vx_scalar scalar_, void *user_pt
 	{
 		status = VX_ERROR_INVALID_PARAMETERS;
 		if ((user_mem_type == VX_MEMORY_TYPE_HOST) && user_ptr) {
+			if (usage == VX_READ_ONLY)
+				status = vxReadScalarValue(scalar_, user_ptr);
+			else if (usage == VX_WRITE_ONLY)
+				status = vxWriteScalarValue(scalar_, user_ptr);
+		}
+	}
+	return status;
+}
+
+VX_API_ENTRY vx_status VX_API_CALL vxCopyScalarWithSize(vx_scalar scalar_, vx_size size, void *user_ptr, vx_enum usage, vx_enum user_mem_type)
+{
+	AgoData * scalar = (AgoData *)scalar_;
+	vx_status status = VX_ERROR_INVALID_REFERENCE;
+	if (agoIsValidData(scalar, VX_TYPE_SCALAR))
+	{
+		status = VX_ERROR_INVALID_PARAMETERS;
+		if ((user_mem_type == VX_MEMORY_TYPE_HOST) && user_ptr && (scalar->u.scalar.itemsize == size)) {
 			if (usage == VX_READ_ONLY)
 				status = vxReadScalarValue(scalar_, user_ptr);
 			else if (usage == VX_WRITE_ONLY)
@@ -7063,7 +7092,7 @@ VX_API_ENTRY vx_tensor VX_API_CALL vxCreateTensor(vx_context context, vx_size nu
  * \note Passing this reference to <tt>\ref vxCopyTensorPatch</tt> will return an error.
  * \ingroup group_tensor
  */
-VX_API_ENTRY vx_tensor VX_API_CALL vxCreateVirtualTensor(vx_graph graph, vx_size num_of_dims, vx_size * dims, vx_enum data_format, vx_int8 fixed_point_pos)
+VX_API_ENTRY vx_tensor VX_API_CALL vxCreateVirtualTensor(vx_graph graph, vx_size num_of_dims, const vx_size * dims, vx_enum data_format, vx_int8 fixed_point_pos)
 {
 	AgoData * data = NULL;
 	if (agoIsValidGraph(graph) && num_of_dims > 0 && num_of_dims <= AGO_MAX_TENSOR_DIMENSIONS) {
@@ -7197,6 +7226,12 @@ VX_API_ENTRY vx_status VX_API_CALL vxQueryTensor(vx_tensor tensor, vx_enum attri
 			case VX_TENSOR_FIXED_POINT_POSITION:
 				if (size == sizeof(vx_uint8)) {
 					*(vx_int8 *)ptr = data->u.tensor.fixed_point_pos;
+					status = VX_SUCCESS;
+				}
+				break;
+			case VX_TENSOR_MEMORY_TYPE:
+				if (size == sizeof(vx_enum)) {
+					*(vx_enum *)ptr = data->import_type;
 					status = VX_SUCCESS;
 				}
 				break;
@@ -7530,6 +7565,100 @@ VX_API_ENTRY vx_status VX_API_CALL vxUnmapTensorPatch(vx_tensor tensor, vx_map_i
 				break;
 			}
 		}
+	}
+	return status;
+}
+
+VX_API_ENTRY vx_tensor VX_API_CALL vxCreateTensorFromHandle(vx_context context, vx_size number_of_dims, const vx_size * dims, vx_enum data_type, vx_int8 fixed_point_position, const vx_size * stride, void * ptr, vx_enum memory_type)
+{
+	AgoData * data = NULL;
+	if (agoIsValidContext(context) && number_of_dims > 0 && number_of_dims <= AGO_MAX_TENSOR_DIMENSIONS) {
+		CAgoLock lock(context->cs);
+		if (memory_type == VX_MEMORY_TYPE_HOST) {
+			char dimStr[256] = "";
+			for (vx_size i = 0; i < number_of_dims; i++)
+				sprintf(dimStr + strlen(dimStr), "%s%u", i ? "," : "", (vx_uint32)dims[i]);
+			char desc[512];
+			sprintf(desc, "tensor:%u,{%s},%s,%d", (vx_uint32)number_of_dims, dimStr, agoEnum2Name(data_type), fixed_point_position);
+			data = agoCreateDataFromDescription(context, NULL, desc, true);
+			if (data) {
+				agoGenerateDataName(context, "tensor", data->name);
+				agoAddData(&context->dataList, data);
+			}
+			data->import_type = VX_MEMORY_TYPE_HOST;
+			data->buffer = (vx_uint8 *)ptr;
+			data->opencl_buffer_offset = 0;
+			for (vx_size i = 0; i < number_of_dims; i++) {
+				if(data->u.tensor.stride[i] != stride[i]) {
+					agoAddLogEntry(&context->ref, VX_ERROR_INVALID_VALUE, "ERROR: vxCreateTensorFromHandle: invalid stride[%ld]=%ld (must be %ld)\n", i, stride[i], data->u.tensor.stride[i]);
+					vxReleaseTensor((vx_tensor *)&data);
+					break;
+				}
+			}
+		}
+#if ENABLE_OPENCL
+		else if (memory_type == VX_MEMORY_TYPE_OPENCL) {
+			char dimStr[256] = "";
+			for (vx_size i = 0; i < number_of_dims; i++)
+				sprintf(dimStr + strlen(dimStr), "%s%u", i ? "," : "", (vx_uint32)dims[i]);
+			char desc[512];
+			sprintf(desc, "tensor:%u,{%s},%s,%d", (vx_uint32)number_of_dims, dimStr, agoEnum2Name(data_type), fixed_point_position);
+			data = agoCreateDataFromDescription(context, NULL, desc, true);
+			if (data) {
+				agoGenerateDataName(context, "tensor", data->name);
+				agoAddData(&context->dataList, data);
+			}
+			data->import_type = VX_MEMORY_TYPE_OPENCL;
+			data->opencl_buffer = (cl_mem)ptr;
+			data->opencl_buffer_offset = 0;
+			for (vx_size i = 0; i < number_of_dims; i++) {
+				if(data->u.tensor.stride[i] != stride[i]) {
+					agoAddLogEntry(&context->ref, VX_ERROR_INVALID_VALUE, "ERROR: vxCreateTensorFromHandle: invalid stride[%ld]=%ld (must be %ld)\n", i, stride[i], data->u.tensor.stride[i]);
+					vxReleaseTensor((vx_tensor *)&data);
+					break;
+				}
+			}
+		}
+#endif
+	}
+	return (vx_tensor)data;
+}
+
+VX_API_ENTRY vx_status VX_API_CALL vxSwapTensorHandle(vx_tensor tensor, void * new_ptr, void** prev_ptr)
+{
+	AgoData * data = (AgoData *)tensor;
+	vx_status status = VX_ERROR_INVALID_REFERENCE;
+	if (agoIsValidData(data, VX_TYPE_TENSOR) && !data->u.tensor.roiMaster) {
+		CAgoLock lock(data->ref.context->cs);
+		status = VX_ERROR_INVALID_PARAMETERS;
+		if (data->import_type == VX_MEMORY_TYPE_HOST) {
+			status = VX_SUCCESS;
+			if (prev_ptr) *prev_ptr = data->buffer;
+			data->buffer = (vx_uint8 *)new_ptr;
+			if (data->buffer) {
+				data->buffer_sync_flags &= ~AGO_BUFFER_SYNC_FLAG_DIRTY_MASK;
+				data->buffer_sync_flags |= AGO_BUFFER_SYNC_FLAG_DIRTY_BY_COMMIT;
+			}
+			// propagate to ROIs
+			for (auto roi = data->roiDepList.begin(); roi != data->roiDepList.end(); roi++) {
+				(*roi)->buffer = data->buffer + (*roi)->u.tensor.offset;
+			}
+		}
+#if ENABLE_OPENCL
+		else if (data->import_type == VX_MEMORY_TYPE_OPENCL) {
+			status = VX_SUCCESS;
+			if (prev_ptr) *prev_ptr = data->opencl_buffer;
+			data->opencl_buffer = (cl_mem)new_ptr;
+			if (data->opencl_buffer) {
+				data->buffer_sync_flags &= ~AGO_BUFFER_SYNC_FLAG_DIRTY_MASK;
+				data->buffer_sync_flags |= AGO_BUFFER_SYNC_FLAG_DIRTY_BY_NODE_CL;
+			}
+			// propagate to ROIs
+			for (auto roi = data->roiDepList.begin(); roi != data->roiDepList.end(); roi++) {
+				(*roi)->opencl_buffer = data->opencl_buffer;
+			}
+		}
+#endif
 	}
 	return status;
 }
