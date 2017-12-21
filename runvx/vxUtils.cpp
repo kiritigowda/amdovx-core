@@ -110,9 +110,13 @@ static struct { const char * name; vx_enum value; } s_table_constants[] = {
 	{ "VX_NN_ACTIVATION_LINEAR", VX_NN_ACTIVATION_LINEAR },
 	{ "VX_NN_NORMALIZATION_SAME_MAP", VX_NN_NORMALIZATION_SAME_MAP },
 	{ "VX_NN_NORMALIZATION_ACROSS_MAPS", VX_NN_NORMALIZATION_ACROSS_MAPS },
-	{ "VX_TYPE_NN_CONV_PARAMS", VX_TYPE_NN_CONV_PARAMS},
-	{ "VX_TYPE_NN_DECONV_PARAMS", VX_TYPE_NN_DECONV_PARAMS },
-	{ "VX_TYPE_NN_ROIPOOL_PARAMS", VX_TYPE_NN_ROIPOOL_PARAMS },
+	{ "VX_TYPE_HOG_PARAMS", VX_TYPE_HOG_PARAMS },
+	{ "VX_TYPE_HOUGH_LINES_PARAMS", VX_TYPE_HOUGH_LINES_PARAMS },
+	{ "VX_TYPE_LINE_2D", VX_TYPE_LINE_2D },
+	{ "VX_TYPE_TENSOR_MATRIX_MULTIPLY_PARAMS", VX_TYPE_TENSOR_MATRIX_MULTIPLY_PARAMS },
+	{ "VX_TYPE_NN_CONVOLUTION_PARAMS", VX_TYPE_NN_CONVOLUTION_PARAMS },
+	{ "VX_TYPE_NN_DECONVOLUTION_PARAMS", VX_TYPE_NN_DECONVOLUTION_PARAMS },
+	{ "VX_TYPE_NN_ROI_POOL_PARAMS", VX_TYPE_NN_ROI_POOL_PARAMS },
 	// error codes
 	{ "VX_FAILURE", VX_FAILURE },
 	{ "VX_ERROR_REFERENCE_NONZERO", VX_ERROR_REFERENCE_NONZERO },
@@ -571,6 +575,45 @@ int WriteImage(vx_image image, vx_rectangle_t * rectFull, FILE * fp)
 	return 0;
 }
 
+// write image compressed
+int WriteImageCompressed(vx_image image, vx_rectangle_t * rectFull, const char * fileName) 
+{
+    // get number of planes, image width in bytes for single plane
+    vx_size num_planes = 0;
+    int im_type = CV_8UC1;
+    vx_uint32 im_width = 0, im_height = 0;
+    vx_df_image im_format;
+    ERROR_CHECK(vxQueryImage(image, VX_IMAGE_WIDTH, &im_width, sizeof(im_width)));
+    ERROR_CHECK(vxQueryImage(image, VX_IMAGE_HEIGHT, &im_height, sizeof(im_height)));
+    ERROR_CHECK(vxQueryImage(image, VX_IMAGE_FORMAT, &im_format, sizeof(im_format)));
+    ERROR_CHECK(vxQueryImage(image, VX_IMAGE_ATTRIBUTE_PLANES, &num_planes, sizeof(num_planes)));
+
+    // write all image planes from vx_image
+    for (vx_uint32 plane = 0; plane < (vx_uint32)num_planes; plane++) {
+        vx_imagepatch_addressing_t addr;
+        vx_uint8 * src = NULL;
+        ERROR_CHECK(vxAccessImagePatch(image, rectFull, plane, &addr, (void **)&src, VX_READ_ONLY));
+
+        // set image format type
+        if (im_format == VX_DF_IMAGE_U8 || im_format == VX_DF_IMAGE_U1_AMD) im_type = CV_8U;
+        else if (im_format == VX_DF_IMAGE_S16) im_type = CV_16UC1; // CV_16SC1 is not supported
+        else if (im_format == VX_DF_IMAGE_U16) im_type = CV_16UC1;
+        else if (im_format == VX_DF_IMAGE_RGB) im_type = CV_8UC3; //RGB24
+        else if (im_format == VX_DF_IMAGE_RGBX) im_type = CV_8UC4;
+        else if (im_format == VX_DF_IMAGE_F32_AMD) im_type = CV_32FC1;
+        else {
+            printf("ERROR: display of image type (%4.4s) is not support. Exiting.\n", (const char *)&im_format);
+            throw - 1;
+        }
+
+        auto img = cv::Mat(im_height, im_width, im_type, src, addr.stride_y);
+        imwrite(fileName, img);
+
+        ERROR_CHECK(vxCommitImagePatch(image, rectFull, plane, &addr, src));
+    }
+    return 0;
+}
+
 // read scalar value into a string
 int ReadScalarToString(vx_scalar scalar, char str[])
 {
@@ -658,7 +701,14 @@ int GetScalarValueForStructTypes(vx_enum type, const char str[], void * value)
 		printf("ERROR: GetScalarValueForStructTypes: string must start with '{'\n");
 		return -1;
 	}
-	else if (type == VX_TYPE_NN_CONV_PARAMS) {
+	else if (type == VX_TYPE_TENSOR_MATRIX_MULTIPLY_PARAMS) {
+		vx_tensor_matrix_multiply_params_t v;
+		v.transpose_input1 = ovxName2Enum(getNextToken(s, token, sizeof(token))) ? vx_true_e : vx_false_e;
+		v.transpose_input2 = ovxName2Enum(getNextToken(s, token, sizeof(token))) ? vx_true_e : vx_false_e;
+		v.transpose_input3 = ovxName2Enum(getNextToken(s, token, sizeof(token))) ? vx_true_e : vx_false_e;
+		*(vx_tensor_matrix_multiply_params_t *)value = v;
+	}
+	else if (type == VX_TYPE_NN_CONVOLUTION_PARAMS) {
 		vx_nn_convolution_params_t v;
 		v.padding_x = atoi(getNextToken(s, token, sizeof(token)));
 		v.padding_y = atoi(getNextToken(s, token, sizeof(token)));
@@ -669,7 +719,7 @@ int GetScalarValueForStructTypes(vx_enum type, const char str[], void * value)
 		v.dilation_y = atoi(getNextToken(s, token, sizeof(token)));
 		*(vx_nn_convolution_params_t *)value = v;
 	}
-	else if (type == VX_TYPE_NN_DECONV_PARAMS) {
+	else if (type == VX_TYPE_NN_DECONVOLUTION_PARAMS) {
 		vx_nn_deconvolution_params_t v;
 		v.padding_x = atoi(getNextToken(s, token, sizeof(token)));
 		v.padding_y = atoi(getNextToken(s, token, sizeof(token)));
@@ -679,7 +729,7 @@ int GetScalarValueForStructTypes(vx_enum type, const char str[], void * value)
 		v.a_y = atoi(getNextToken(s, token, sizeof(token)));
 		*(vx_nn_deconvolution_params_t *)value = v;
 	}
-	else if (type == VX_TYPE_NN_ROIPOOL_PARAMS) {
+	else if (type == VX_TYPE_NN_ROI_POOL_PARAMS) {
 		vx_nn_roi_pool_params_t v;
 		v.pool_type = ovxName2Enum(getNextToken(s, token, sizeof(token)));
 		*(vx_nn_roi_pool_params_t *)value = v;
@@ -827,3 +877,4 @@ int PutScalarValueToString(vx_enum type, const void * value, char str[])
 	}
 	return 0;
 }
+

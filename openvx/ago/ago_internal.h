@@ -34,7 +34,7 @@ THE SOFTWARE.
 //
 
 // version
-#define AGO_VERSION "0.9.6"
+#define AGO_VERSION "0.9.8"
 
 // debug configuration
 #define ENABLE_DEBUG_MESSAGES                 0 // 0:disable 1:enable
@@ -418,10 +418,12 @@ struct AgoData {
 	std::list<MappedData> mapped;
 	vx_map_id nextMapId;
 	vx_uint32 hierarchical_level;
-	vx_uint32 hierarchical_life_start;
-	vx_uint32 hierarchical_life_end;
 	struct AgoNode * ownerOfUserBufferOpenCL;
 	std::list<AgoData *> roiDepList;
+	vx_uint32 hierarchical_life_start;
+	vx_uint32 hierarchical_life_end;
+	vx_uint32 initialization_flags;
+	vx_uint32 device_type_unused;
 public:
 	AgoData();
 	~AgoData();
@@ -511,6 +513,8 @@ struct AgoSuperNode {
 	size_t opencl_global_work[3];
 	size_t opencl_local_work[3];
 #endif
+	vx_uint32 hierarchical_level_start;
+	vx_uint32 hierarchical_level_end;
 	vx_status status;
 	vx_perf_t perf;
 public:
@@ -537,6 +541,7 @@ struct AgoNode {
 	vx_nodecomplete_f callback;
 	AgoSuperNode * supernode;
 	bool initialized;
+	bool drama_divide_invoked;
 	vx_uint32 valid_rect_num_inputs;
 	vx_uint32 valid_rect_num_outputs;
 	vx_rectangle_t ** valid_rect_inputs;
@@ -685,6 +690,7 @@ struct AgoContext {
 #if defined(CL_VERSION_2_0)
 	cl_device_svm_capabilities opencl_svmcaps;
 #endif
+    cl_command_queue_properties opencl_cmdq_properties;
 	cl_uint      opencl_num_devices;
 	cl_device_id opencl_device_list[16];
 	char opencl_build_options[256];
@@ -818,8 +824,9 @@ int agoGpuOclReleaseSuperNode(AgoSuperNode * supernode);
 int agoGpuOclReleaseData(AgoData * data);
 int agoGpuOclCreateContext(AgoContext * context, cl_context opencl_context);
 int agoGpuOclAllocBuffer(AgoData * data);
-int agoGpuOclAllocBuffers(AgoGraph * graph, AgoNode * node);
+int agoGpuOclAllocBuffers(AgoGraph * graph);
 int agoGpuOclSuperNodeMerge(AgoGraph * graph, AgoSuperNode * supernode, AgoNode * node);
+int agoGpuOclSuperNodeUpdate(AgoGraph * graph, AgoSuperNode * supernode);
 int agoGpuOclSuperNodeFinalize(AgoGraph * graph, AgoSuperNode * supernode);
 int agoGpuOclSuperNodeLaunch(AgoGraph * graph, AgoSuperNode * supernode);
 int agoGpuOclSuperNodeWait(AgoGraph * graph, AgoSuperNode * supernode);

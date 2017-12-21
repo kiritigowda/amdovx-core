@@ -317,9 +317,10 @@ int agoGpuOclCreateContext(AgoContext * context, cl_context opencl_context)
 #endif
 	// create command queue for buffer sync
 #if defined(CL_VERSION_2_0)
-	context->opencl_cmdq = clCreateCommandQueueWithProperties(context->opencl_context, context->opencl_device_list[device_id], NULL, &status);
+	cl_queue_properties properties[] = { CL_QUEUE_PROPERTIES, context->opencl_cmdq_properties, 0 };
+	context->opencl_cmdq = clCreateCommandQueueWithProperties(context->opencl_context, context->opencl_device_list[device_id], properties, &status);
 #else
-	context->opencl_cmdq = clCreateCommandQueue(context->opencl_context, context->opencl_device_list[device_id], 0, &status);
+	context->opencl_cmdq = clCreateCommandQueue(context->opencl_context, context->opencl_device_list[device_id], context->opencl_cmdq_properties, &status);
 #endif
 	if (status) {
 		agoAddLogEntry(&context->ref, VX_FAILURE, "ERROR: clCreateCommandQueueWithProperties(%p,%p,0,*) => %d\n", context->opencl_context, context->opencl_device_list[device_id], status);
@@ -543,24 +544,6 @@ int agoGpuOclAllocBuffer(AgoData * data)
 	// allocate CPU buffer
 	if (agoAllocData(data)) {
 		return -1;
-	}
-	return 0;
-}
-
-int agoGpuOclAllocBuffers(AgoGraph * graph, AgoNode * node)
-{
-	for (vx_uint32 i = 0; i < node->paramCount; i++) {
-		AgoData * data = node->paramList[i];
-		if (data && !data->opencl_buffer) {
-			if (agoIsPartOfDelay(data)) {
-				int siblingTrace[AGO_MAX_DEPTH_FROM_DELAY_OBJECT], siblingTraceCount = 0;
-				data = agoGetSiblingTraceToDelayForUpdate(data, siblingTrace, siblingTraceCount);
-				if (!data) return -1;
-			}
-			if (agoGpuOclAllocBuffer(data) < 0) {
-				return -1;
-			}
-		}
 	}
 	return 0;
 }
@@ -1529,12 +1512,12 @@ static void agoEmulateAmdMediaOpsInOpenCL(std::string& code)
 	}
 }
 
-int agoGpuOclSuperNodeFinalize(AgoGraph * graph, AgoSuperNode * supernode)
+int agoGpuOclSuperNodeUpdate(AgoGraph * graph, AgoSuperNode * supernode)
 {
 	// make sure that all output images have same dimensions
 	// check to make sure that max input hierarchy level is less than min output hierarchy level
 	vx_uint32 width = 0, height = 0;
-	vx_uint32 max_input_hierarchical_level = 0, min_output_hierarchical_level = (1 << 30);
+	vx_uint32 max_input_hierarchical_level = 0, min_output_hierarchical_level = INT_MAX;
 	for (size_t index = 0; index < supernode->dataList.size(); index++) {
 		AgoData * data = supernode->dataList[index];
 		if (data->ref.type == VX_TYPE_IMAGE && supernode->dataInfo[index].argument_usage[VX_INPUT] == 0) {
@@ -1564,13 +1547,32 @@ int agoGpuOclSuperNodeFinalize(AgoGraph * graph, AgoSuperNode * supernode)
 		agoAddLogEntry(&graph->ref, VX_FAILURE, "ERROR: agoGpuOclSuperNodeFinalize: doesn't support mix of hierarchical levels inside same group#%d\n", supernode->group);
 		return -1;
 	}
+	supernode->width = width;
+	supernode->height = height;
+
+	// mark hierarchical level (start,end) of all supernodes
+	for (AgoSuperNode * supernode = graph->supernodeList; supernode; supernode = supernode->next) {
+		supernode->hierarchical_level_start = INT_MAX;
+		supernode->hierarchical_level_end = 0;
+		for (AgoNode * node : supernode->nodeList) {
+			supernode->hierarchical_level_start = min(supernode->hierarchical_level_start, node->hierarchical_level);
+			supernode->hierarchical_level_end = max(supernode->hierarchical_level_end, node->hierarchical_level);
+		}
+	}
+
+	return 0;
+}
+
+int agoGpuOclSuperNodeFinalize(AgoGraph * graph, AgoSuperNode * supernode)
+{
+	// get supernode image dimensions
+	vx_uint32 width = supernode->width;
+	vx_uint32 height = supernode->height;
 	// decide work group dimensions (256 work-items)
 	vx_uint32 work_group_width = AGO_OPENCL_WORKGROUP_SIZE_0;
 	vx_uint32 work_group_height = AGO_OPENCL_WORKGROUP_SIZE_1;
 	// save image size and compute global work
 	//   - each work item processes 8x1 pixels
-	supernode->width = width;
-	supernode->height = height;
 	supernode->opencl_global_work[0] = (((width + 7) >> 3) + (work_group_width  - 1)) & ~(work_group_width  - 1);
 	supernode->opencl_global_work[1] = (  height           + (work_group_height - 1)) & ~(work_group_height - 1);
 	supernode->opencl_global_work[2] = 1;
