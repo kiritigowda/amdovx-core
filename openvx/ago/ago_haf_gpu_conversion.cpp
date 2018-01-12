@@ -1371,10 +1371,11 @@ int HafGpu_ColorConvert(AgoNode * node)
 					"    yuv.s0 = mad(amd_unpack3(pY1.s1),r2f.s0,r2f.s1); yuv.s1 = mad(amd_unpack3(pU1.s1),r2f.s2,r2f.s3); yuv.s2 = mad(amd_unpack3(pV1.s1),r2f.s2,r2f.s3);\n"
 					"    f.s1 = mad(cR.s1, yuv.s2, yuv.s0); f.s2 = mad(cG.s0, yuv.s1, yuv.s0); f.s2 = mad(cG.s1, yuv.s2, f.s2); f.s3 = mad(cB.s0, yuv.s1, yuv.s0); pRGB1.s5 = amd_pack(f);\n"
 					"    pRGB_buf += pRGB_offset + (gy * %d) + (gx * 24);\n" // pRGB_stride * 2
-					"    *(__global uint3 *) pRGB_buf = pRGB0.s012;\n"
-					"    *(__global uint3 *)&pRGB_buf[12] = pRGB0.s345;\n"
-					"    *(__global uint3 *)&pRGB_buf[%d] = pRGB1.s012;\n" // pRGB_stride
-					"    *(__global uint3 *)&pRGB_buf[%d+12] = pRGB1.s345;\n" // pRGB_stride
+					"    uint3 RGB_pixel;\n"
+					"    RGB_pixel = (uint3)pRGB0.s012; vstore3(RGB_pixel, 0, (__global uint *)pRGB_buf);\n"
+					"    RGB_pixel = (uint3)pRGB0.s345; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[12]);\n"
+					"    RGB_pixel = (uint3)pRGB1.s012; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[%d]);\n"
+					"    RGB_pixel = (uint3)pRGB1.s345; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[%d+12]);\n"
 					), pRGB_stride * 2, pRGB_stride, pRGB_stride);
 			}
 			else { // VX_CHANNEL_RANGE_FULL
@@ -1414,10 +1415,11 @@ int HafGpu_ColorConvert(AgoNode * node)
 					"    yuv.s0 = amd_unpack3(pY1.s1); yuv.s1 = amd_unpack3(pU1.s1); yuv.s2 = amd_unpack3(pV1.s1); yuv.s1 -= 128.0f;; yuv.s2 -= 128.0f;\n"
 					"    f.s1 = mad(cR.s1, yuv.s2, yuv.s0); f.s2 = mad(cG.s0, yuv.s1, yuv.s0); f.s2 = mad(cG.s1, yuv.s2, f.s2); f.s3 = mad(cB.s0, yuv.s1, yuv.s0); pRGB1.s5 = amd_pack(f);\n"
 					"    pRGB_buf += pRGB_offset + (gy * %d) + (gx * 24);\n" // pRGB_stride * 2
-					"    *(__global uint3 *) pRGB_buf = pRGB0.s012;\n"
-					"    *(__global uint3 *)&pRGB_buf[12] = pRGB0.s345;\n"
-					"    *(__global uint3 *)&pRGB_buf[%d] = pRGB1.s012;\n" // pRGB_stride
-					"    *(__global uint3 *)&pRGB_buf[%d+12] = pRGB1.s345;\n" // pRGB_stride
+					"    uint3 RGB_pixel;\n"
+					"    RGB_pixel = (uint3)pRGB0.s012; vstore3(RGB_pixel, 0, (__global uint *)pRGB_buf);\n"
+					"    RGB_pixel = (uint3)pRGB0.s345; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[12]);\n"
+					"    RGB_pixel = (uint3)pRGB1.s012; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[%d]);\n"
+					"    RGB_pixel = (uint3)pRGB1.s345; vstore3(RGB_pixel, 0, (__global uint *)&pRGB_buf[%d+12]);\n"
 					), pRGB_stride * 2, pRGB_stride, pRGB_stride);
 			}
 			node->opencl_code += item;
