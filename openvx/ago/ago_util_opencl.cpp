@@ -1877,7 +1877,7 @@ int agoGpuOclSuperNodeFinalize(AgoGraph * graph, AgoSuperNode * supernode)
 	}
 	code += ")\n";
 	// generate code: workitem (x,y) computation
-	code += "{\n\tuint x = get_global_id(0) * 8;\n\tuint y = get_global_id(1);\n\tbool valid = (x < width) && (y < height);\n\n";
+	code += "{\n\tuint x = get_global_id(0) * 8;\n\tuint y = get_global_id(1);\n\tbool valid = (x < (width - 7)) && (y < height);\n\n";
 	// generate code: add offset to image address
 	bool uses_local_memory = false;
 	for (size_t index = 0; index < supernode->dataList.size(); index++) {
