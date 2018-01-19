@@ -90,10 +90,10 @@ int HafGpu_Load_Local(int WGWidth, int WGHeight, int LMWidth, int LMHeight, int 
 			return -1;
 		}
 		if (use_vload) {
-			sprintf(item, "    *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset));\n", dType, dType[4]);
+			sprintf(item, "    int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
 		}
 		else {
-			sprintf(item, "    *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset);\n", dType, dType);
+			sprintf(item, "    int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
 		}
 		code += item;
 		// get configuration for extra load
@@ -125,10 +125,10 @@ int HafGpu_Load_Local(int WGWidth, int WGHeight, int LMWidth, int LMHeight, int 
 			, gyoffset, dTypeShift, (WGWidth << LMdivWGWidthShift) - gxoffset, LMHeight);
 		code += item;
 		if (use_vload) {
-			sprintf(item, "      *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset));\n", dType, dType[4]);
+			sprintf(item, "      int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
 		}
 		else {
-			sprintf(item, "      *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset);\n", dType, dType);
+			sprintf(item, "      int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
 		}
 		code += item;
 		code += "    }\n";
