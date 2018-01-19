@@ -78,7 +78,7 @@ int HafGpu_Load_Local(int WGWidth, int WGHeight, int LMWidth, int LMHeight, int 
 		OPENCL_FORMAT(
 		"  { // load %dx%d bytes into local memory using %dx%d workgroup\n" // LMWidth, LMHeight, WGWidth, WGHeight
 		"    int loffset = ly * %d + (lx << %d);\n" // LMWidth, dTypeShift
-		"    int goffset = (gy - %d) * gstride + (gx << %d) - %d;\n" // gyoffset, dTypeShift, gxoffset
+		"    int goffset = (gy - %d) * gstride + (gx << %d) - %d; int goffset_clamp = 0; \n" // gyoffset, dTypeShift, gxoffset
 		), LMWidth, LMHeight, WGWidth, WGHeight, LMWidth, dTypeShift, gyoffset, dTypeShift, gxoffset);
 	code += item;
 	int LMHeightRemain = LMHeight - WGHeight;
@@ -90,10 +90,10 @@ int HafGpu_Load_Local(int WGWidth, int WGHeight, int LMWidth, int LMHeight, int 
 			return -1;
 		}
 		if (use_vload) {
-			sprintf(item, "    int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
+			sprintf(item, "    goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
 		}
 		else {
-			sprintf(item, "    int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
+			sprintf(item, "    goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
 		}
 		code += item;
 		// get configuration for extra load
@@ -125,10 +125,10 @@ int HafGpu_Load_Local(int WGWidth, int WGHeight, int LMWidth, int LMHeight, int 
 			, gyoffset, dTypeShift, (WGWidth << LMdivWGWidthShift) - gxoffset, LMHeight);
 		code += item;
 		if (use_vload) {
-			sprintf(item, "      int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
+			sprintf(item, "      goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = vload%c(0, (__global uint *)(gbuf + goffset_clamp));\n", dType, dType[4]);
 		}
 		else {
-			sprintf(item, "      int goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
+			sprintf(item, "      goffset_clamp = max(0,goffset); *(__local %s *)(lbuf + loffset) = *(__global %s *)(gbuf + goffset_clamp);\n", dType, dType);
 		}
 		code += item;
 		code += "    }\n";
