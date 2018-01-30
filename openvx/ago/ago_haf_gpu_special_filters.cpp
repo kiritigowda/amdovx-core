@@ -1540,7 +1540,7 @@ int HafGpu_ScaleGaussianHalf(AgoNode * node)
 			"  L0.s01 = vload2(0, (__local uint *)&lbuf_ptr[%d]);\n" // LMemStride * 4
 			"  sum.s0 += (float)(L0.s0 & 0xffff); sum.s1 += (float)(L0.s0 >> 16); sum.s2 += (float)(L0.s1 & 0xffff); sum.s3 += (float)(L0.s1 >> 16);\n"
 			"  sum = sum * (float4)0.00390625f;\n"
-			"  if (valid) {;\n"
+			"  if (valid) {\n"
 			"    *(__global uint *)p0_buf = amd_pack(sum);\n"
 			"  }\n"
 			"}\n"
