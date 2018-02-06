@@ -15968,7 +15968,7 @@ int agoKernel_WarpAffine_U8_U8_Nearest(AgoNode * node, AgoKernelCommand cmd)
 			"  U8x8 rv;\n"
 			"  float sx, sy;\n"
 			"  float dx = (float)x, dy = (float)y;\n"
-			"  uint offset, offset_max = width*height-1;\n"
+			"  uint offset, offset_max = width*height-1;\n" // offset is uint, clamp to min of max addr and offset. 
 			"  sx = mad(dy, matrix.M[1][0], matrix.M[2][0]); sx = mad(dx, matrix.M[0][0], sx);\n"
 			"  sy = mad(dy, matrix.M[1][1], matrix.M[2][1]); sy = mad(dx, matrix.M[0][1], sy);\n"
 			"  offset = mad24(stride, (uint)sy, (uint)sx); rv.s0 = p[min(offset,offset_max)];\n"
