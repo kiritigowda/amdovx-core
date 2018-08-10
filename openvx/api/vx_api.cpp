@@ -7693,4 +7693,3 @@ VX_API_ENTRY vx_bool VX_API_CALL vxIsTensorAliased(vx_tensor tensorMaster, vx_si
 	}
 	return status;
 }
->>>>>>> develop
