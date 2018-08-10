@@ -34,7 +34,7 @@ THE SOFTWARE.
 //
 
 // version
-#define AGO_VERSION "0.9.8"
+#define AGO_VERSION "0.9.9"
 
 // debug configuration
 #define ENABLE_DEBUG_MESSAGES                 0 // 0:disable 1:enable
@@ -424,6 +424,8 @@ struct AgoData {
 	vx_uint32 hierarchical_life_end;
 	vx_uint32 initialization_flags;
 	vx_uint32 device_type_unused;
+	AgoData * alias_data;
+	vx_size   alias_offset;
 public:
 	AgoData();
 	~AgoData();
